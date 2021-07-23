@@ -54,7 +54,7 @@ class I2CBitbanging(object):
 		self._gpio_value = value
 		self._update_gpout()
 
-	def transfer_nocheck(self, address, read, readlen_or_data):
+	def transfer(self, address, read, readlen_or_data):
 		#NOTE for self._write: bit 0 is SCK, bit 1 is SDA
 		self._sda_out()
 		self._write(0x3)
@@ -160,11 +160,11 @@ class I2CBitbanging(object):
 			self._write(0x3)  # stop condition
 			return False
 
-	def transfer_autorepeat(self, *args):
+	def fix_i2c(self, always_generate_stop=False):
 		while True:
 			try:
 				self._sda_in()
-				if not self._read_sda():
+				if not self._read_sda() or always_generate_stop:
 					# some device is pulling SDA low -> try to generate clocks to resolve this
 					ok = False
 					for _ in range(10):
@@ -181,19 +181,18 @@ class I2CBitbanging(object):
 					if not ok:
 						raise Exception("Couldn't release SDA line by generating some clock pulses")
 
-				return self.transfer_nocheck(*args)
+				return True
 			except pyftdi.ftdi.FtdiError as exc:
 				if str(exc) == "UsbError: [Errno 110] Operation timed out":  # we only get the string, sorry...
 					print("ignoring timeout")
 				else:
 					raise
 
-	#FIXME auto-repeat is not a good default -> caller should decide
 	def read(self, address, length):
-		return self.transfer_autorepeat(address, True, length)
+		return self.transfer(address, True, length)
 
 	def write(self, address, data):
-		return self.transfer_autorepeat(address, False, data)
+		return self.transfer(address, False, data)
 
 	def scan(self):
 		for i in range(128):
@@ -204,6 +203,28 @@ class I2CBitbanging(object):
 				except pyftdi.ftdi.FtdiError:
 					print("error")
 
+class I2CAutoRetry(object):
+	__slots__ = ("i2c", "retry",)
+
+	def __init__(self, i2c):
+		self.i2c = i2c
+		self.retry = True
+
+	def __bool__(self):
+		return self.retry
+
+	def __enter__(self):
+		return self
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		if exc_type == pyftdi.ftdi.FtdiError and str(exc_value) == "UsbError: [Errno 110] Operation timed out":  # we only get the string, sorry...
+			print("USB timeout -> try again")
+			self.retry = True
+			self.i2c.fix_i2c(always_generate_stop=True)
+			return True  # suppress exception
+		else:
+			self.retry = False
+			return False
 
 class TCS3472(object):
 	__slots__ = ("i2c", "address", "_regs")
@@ -236,10 +257,16 @@ class TCS3472(object):
 			self.i2c.gpio_value &= ~0x08
 
 	def read_regs(self, regaddr, length=1):
-		if self.i2c.write(self.address, [0xa0 | (regaddr & 0x1f)]):
-			return self.i2c.read(self.address, length)
+		retry = I2CAutoRetry(self.i2c)
+		while retry:
+			with retry:
+				if self.i2c.write(self.address, [0xa0 | (regaddr & 0x1f)]):
+					return self.i2c.read(self.address, length)
 	def write_regs(self, regaddr, data):
-		return self.i2c.write(self.address, [0xa0 | (regaddr & 0x1f)] + data)
+		retry = I2CAutoRetry(self.i2c)
+		while retry:
+			with retry:
+				return self.i2c.write(self.address, [0xa0 | (regaddr & 0x1f)] + data)
 		
 def run():
 	i2c = I2CBitbanging(url)
