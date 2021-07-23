@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i python3 -p "python3.withPackages (p: [p.pyftdi])"
+#! nix-shell -i python3 -p "python3.withPackages (p: with p; [pyftdi tkinter])"
 
 # use ftdi_urls.py in the nix-shell to list available device.
 #url = "ftdi:///1"  # just use the first one / only one
@@ -236,7 +236,10 @@ class TCS3472(object):
 		
 		id_reg = self.read_regs(0x12)
 		if not id_reg:
-			raise Exception("not found (I2C NACK)")
+			self.i2c.fix_i2c(True)
+			id_reg = self.read_regs(0x12)
+			if not id_reg:
+				raise Exception("not found (I2C NACK)")
 		elif id_reg[0] != 0x44:
 			raise Exception("Reg 0x12 should be 0x44 but it is 0x%02x" % regs[0x12])
 
@@ -295,6 +298,98 @@ def run():
 			print("green: %04x" % (data[4] | (data[5] << 8)))
 			print("blue:  %04x" % (data[6] | (data[7] << 8)))
 
+def run_gui():
+	import tkinter
+	from tkinter import N, E, W, S, IntVar, Label
+	import threading
+
+	root = tkinter.Tk()
+	root.columnconfigure(1, weight=1)
+	root.rowconfigure(0, weight=1)
+
+	row = 0
+	canvas = tkinter.Canvas(root)
+	canvas.grid(column=0, row=row, sticky=(N, E, W, S), columnspan=2)
+	row += 1
+
+	led = IntVar(value=0)
+	check_led = tkinter.Checkbutton(root, variable=led, text="LED")
+	check_led.grid(column=0, row=row, columnspan=2, sticky=W)
+	row += 1
+	
+	integration_time = IntVar(value=0x80)
+	Label(root, text="Integration time").grid(column=0, row=row, sticky=(W,))
+	slider_integration_time = tkinter.Scale(root, from_=0, to=255, variable=integration_time, orient=tkinter.HORIZONTAL)
+	slider_integration_time.grid(column=1, row=row, sticky=(E, W))
+	row += 1
+	
+	gain = IntVar(value=1)
+	Label(root, text="Gain").grid(column=0, row=row, sticky=(W,))
+	slider_gain = tkinter.Scale(root, from_=0, to=3, variable=gain, orient=tkinter.HORIZONTAL)
+	slider_gain.grid(column=1, row=row, sticky=(E, W))
+	row += 1
+
+	color_as_text = tkinter.Entry(root)
+	color_as_text.grid(column=0, row=row, columnspan=2, sticky=(E, W))
+	color_as_text.insert(0, "...")
+	color_as_text.configure(state = "readonly")
+	row += 1
+
+	i2c = I2CBitbanging(url)
+	tcs = TCS3472(i2c, 0x29)
+
+	tcs.write_regs(0x00, [0x01, 0xff - integration_time.get(), 0x80, 0x12, 0x34, 0x56, 0x78])
+	tcs.write_regs(0x0d, [0x00])
+	tcs.write_regs(0x0f, [gain.get()])  # gain
+	sleep(0.0024)
+	tcs.write_regs(0x00, [0x0b])
+
+	def on_sensor_data(clear, red, green, blue):
+		print("a")
+		color_as_text.configure(state = "normal")
+		color_as_text.delete(0, "end")
+		color_as_text.insert(0, "%04x, %04x, %04x, %04x" % (clear, red, green, blue))
+		color_as_text.configure(state = "readonly")
+		root.update()
+		print("b")
+
+	mainloop_done = False
+	def query_sensor():
+		prev_integration_time = integration_time.get()
+		prev_gain = gain.get()
+		while not mainloop_done:
+			if tcs.led  != (led.get() != 0):
+				print("update LED")
+				tcs.led = (led.get() != 0)
+			if prev_integration_time != integration_time.get():
+				print("update integration_time")
+				tcs.write_regs(0x01, [0xff - integration_time.get()])
+				prev_integration_time = integration_time.get()
+			if prev_gain != gain.get():
+				print("update gain")
+				tcs.write_regs(0x0f, [gain.get()])
+				prev_gain = gain.get()
+
+			valid = tcs.read_regs(0x13)
+			if (valid[0] & 1) != 0:
+				# datasheet says to use two byte reads with "read word protocol bit set" but there is no such bit in the command register
+				# -> auto-increment read should be good enough to trigger the shadow register behavior, I guess
+				data = tcs.read_regs(0x14, 8)
+				print("clear: %04x" % (data[0] | (data[1] << 8)))
+				print("red:   %04x" % (data[2] | (data[3] << 8)))
+				print("green: %04x" % (data[4] | (data[5] << 8)))
+				print("blue:  %04x" % (data[6] | (data[7] << 8)))
+				if not mainloop_done:
+					root.after_idle(on_sensor_data,  (data[0] | (data[1] << 8)), (data[2] | (data[3] << 8)),
+						(data[4] | (data[5] << 8)), (data[6] | (data[7] << 8)))
+	t = threading.Thread(target=query_sensor)
+	t.start()
+
+	root.mainloop()
+	mainloop_done = True
+	t.join()
+
 if __name__ == "__main__":
-	run()
+	#run()
+	run_gui()
 
