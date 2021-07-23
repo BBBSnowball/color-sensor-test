@@ -54,7 +54,7 @@ class I2CBitbanging(object):
 		self._gpio_value = value
 		self._update_gpout()
 
-	def transfer(self, address, read, readlen_or_data):
+	def transfer_nocheck(self, address, read, readlen_or_data):
 		#NOTE for self._write: bit 0 is SCK, bit 1 is SDA
 		self._sda_out()
 		self._write(0x3)
@@ -140,7 +140,6 @@ class I2CBitbanging(object):
 						self._write(0x0)
 						self._sda_in()
 					nack = self._read_sda()
-					print(not nack)
 					if not nack:
 						self._write(0x1)
 					else:
@@ -161,11 +160,50 @@ class I2CBitbanging(object):
 			self._write(0x3)  # stop condition
 			return False
 
+	def transfer_autorepeat(self, *args):
+		while True:
+			try:
+				self._sda_in()
+				if not self._read_sda():
+					# some device is pulling SDA low -> try to generate clocks to resolve this
+					ok = False
+					for _ in range(10):
+						self._write(0x0)
+						if self._read_sda():
+							# SDA is released -> generate stop condition
+							self._sda_out()
+							self._write(0x1)
+							self._write(0x3)  # stop condition
+							ok = True
+							break
+						else:
+							self._write(0x1)
+					if not ok:
+						raise Exception("Couldn't release SDA line by generating some clock pulses")
+
+				return self.transfer_nocheck(*args)
+			except pyftdi.ftdi.FtdiError as exc:
+				if str(exc) == "UsbError: [Errno 110] Operation timed out":  # we only get the string, sorry...
+					print("ignoring timeout")
+				else:
+					raise
+
+	#FIXME auto-repeat is not a good default -> caller should decide
 	def read(self, address, length):
-		return self.transfer(address, True, length)
+		return self.transfer_autorepeat(address, True, length)
 
 	def write(self, address, data):
-		return self.transfer(address, False, data)
+		return self.transfer_autorepeat(address, False, data)
+
+	def scan(self):
+		for i in range(128):
+			while True:
+				try:
+					print((i, i2c.transfer_autorepeat(i, False, [])))  #FIXME
+					break
+				except pyftdi.ftdi.FtdiError:
+					print("error")
+
 
 class TCS3472(object):
 	__slots__ = ("i2c", "address", "_regs")
@@ -175,13 +213,13 @@ class TCS3472(object):
 		self.address = address
 		self.i2c.gpio_direction |= 0x08
 		
-		id_reg = self.read_reg(0x12)
+		id_reg = self.read_regs(0x12)
 		if not id_reg:
 			raise Exception("not found (I2C NACK)")
 		elif id_reg[0] != 0x44:
 			raise Exception("Reg 0x12 should be 0x44 but it is 0x%02x" % regs[0x12])
 
-		self._regs = self.read_reg(0x00, 0x1c)
+		self._regs = self.read_regs(0x00, 0x1c)
 		if not self._regs:
 			raise Exception("not found (I2C NACK)")
 		elif self._regs[0x12] != 0x44:
@@ -197,102 +235,39 @@ class TCS3472(object):
 		else:
 			self.i2c.gpio_value &= ~0x08
 
-	def read_reg(self, regaddr, length=1):
+	def read_regs(self, regaddr, length=1):
 		if self.i2c.write(self.address, [0xa0 | (regaddr & 0x1f)]):
 			return self.i2c.read(self.address, length)
-	def write_reg(self, regaddr, data):
-		return self.i2c.write([0xa0 | (regaddr & 0x1f)] + data)
+	def write_regs(self, regaddr, data):
+		return self.i2c.write(self.address, [0xa0 | (regaddr & 0x1f)] + data)
 		
+def run():
+	i2c = I2CBitbanging(url)
+	tcs = TCS3472(i2c, 0x29)
 
-i2c = I2CBitbanging(url)
-tcs = TCS3472(i2c, 0x29)
+	tcs.led = True
+	sleep(0.5)
+	tcs.led = False
+	sleep(0.5)
+	tcs.led = True
 
-#i2c.gpio_direction = 0x08
-#i2c.gpio_value = 0x08
-#sleep(0.5)
-#i2c.gpio_value = 0x00
-#sleep(0.5)
-#i2c.gpio_value = 0x08
+	integration_time = 0x80
+	tcs.write_regs(0x00, [0x01, 0xff - integration_time, 0x80, 0x12, 0x34, 0x56, 0x78])
+	tcs.write_regs(0x0d, [0x00])
+	tcs.write_regs(0x0f, [0x01])  # gain
+	sleep(0.0024)
+	tcs.write_regs(0x00, [0x0b])
+	while True:
+		valid = tcs.read_regs(0x13)
+		if (valid[0] & 1) != 0:
+			# datasheet says to use two byte reads with "read word protocol bit set" but there is no such bit in the command register
+			# -> auto-increment read should be good enough to trigger the shadow register behavior, I guess
+			data = tcs.read_regs(0x14, 8)
+			print("clear: %04x" % (data[0] | (data[1] << 8)))
+			print("red:   %04x" % (data[2] | (data[3] << 8)))
+			print("green: %04x" % (data[4] | (data[5] << 8)))
+			print("blue:  %04x" % (data[6] | (data[7] << 8)))
 
-tcs.led = True
-sleep(0.5)
-tcs.led = False
-sleep(0.5)
-tcs.led = True
-
-if False:
-	if not i2c.write(0x29, [0xa0 | 0x12]):
-		print("not found")
-		sys.exit(1)
-	id_reg = i2c.read(0x29, 1)
-	if id_reg[0] != 0x44:
-		print("Reg 0x12 should be 0x44 but it is 0x%02x" % regs[0x12])
-		sys.exit(1)
-	print(i2c.write(0x29, [0xa0 | 0]))
-	regs = i2c.read(0x29, 0x1c)
-	if regs[0x12] != 0x44:
-		print("Reg 0x12 should be 0x44 but it is 0x%02x" % regs[0x12])
-		sys.exit(1)
-
-#print(i2c.write(0x29, [0xa0 | 0]))
-#print(i2c.read(0x29, 1))
-
-if False:
-	for i in range(128):
-		while True:
-			try:
-				print((i, i2c.transfer(i, False, [])))
-				break
-			except pyftdi.ftdi.FtdiError:
-				print("error")
-
-sys.exit()
-
-
-i2c.force_clock_mode(True)   # why is this necessary? this is a H series device?!
-#pyftdi.ftdi.Ftdi.is_H_series = lambda _: True  # oh, well...
-
-i2c.configure(url, direction=0x08, initial=0x00, clockstretching=False, frequency = 10*1000)
-#device = i2c.get_port(0x29)
-device = i2c.get_port(0x01)
-
-print(i2c.frequency)
-print(i2c.ftdi.device_version)
-
-print(i2c.poll(0x29, write=True))
-sys.exit()
-
-if False:
-	for i in range(128):
-		try:
-			i2c.write(i, [])
-			print("found 0x%02x" % i)
-		except I2cNackError:
-			pass
-
-while True:
-	if i2c.poll(0x01):
-		print("0x28")
-	sleep(0.05)
-
-if True:
-	for i in range(128):
-		if i2c.poll(i):
-			print("found 0x%02x" % i)
-
-i2c.set_gpio_direction(0x08, 0x08)  # well, argument to configure doesn't seem to have any effect so do it again
-i2c.write_gpio(0x08)
-sleep(0.5)
-i2c.write_gpio(0x00)
-sleep(0.5)
-i2c.write_gpio(0x08)
-
-def tcs_read(regaddr, length=1):
-	return device.exchange([0xa0 | (regaddr & 0x1f)], readlen=length)
-def tcs_write(regaddr, data):
-	return device.exchange([0xa0 | (regaddr & 0x1f)] + data)
-
-print(repr(tcs_read(0)))
-tcs_write(0, [0x01])
-print(repr(tcs_read(0)))
+if __name__ == "__main__":
+	run()
 
