@@ -317,7 +317,7 @@ def run_gui():
 	check_led.grid(column=0, row=row, columnspan=2, sticky=W)
 	row += 1
 	
-	integration_time = IntVar(value=0x80)
+	integration_time = IntVar(value=62)
 	Label(root, text="Integration time").grid(column=0, row=row, sticky=(W,))
 	slider_integration_time = tkinter.Scale(root, from_=0, to=255, variable=integration_time, orient=tkinter.HORIZONTAL)
 	slider_integration_time.grid(column=1, row=row, sticky=(E, W))
@@ -335,28 +335,53 @@ def run_gui():
 	color_as_text.configure(state = "readonly")
 	row += 1
 
-	i2c = I2CBitbanging(url)
-	tcs = TCS3472(i2c, 0x29)
-
-	tcs.write_regs(0x00, [0x01, 0xff - integration_time.get(), 0x80, 0x12, 0x34, 0x56, 0x78])
-	tcs.write_regs(0x0d, [0x00])
-	tcs.write_regs(0x0f, [gain.get()])  # gain
-	sleep(0.0024)
-	tcs.write_regs(0x00, [0x0b])
-
+	global prev
+	prev = (0, 0, 0, 0)
 	def on_sensor_data(clear, red, green, blue):
-		print("a")
+		global prev
 		color_as_text.configure(state = "normal")
 		color_as_text.delete(0, "end")
 		color_as_text.insert(0, "%04x, %04x, %04x, %04x" % (clear, red, green, blue))
 		color_as_text.configure(state = "readonly")
+
+		step = 10
+		w = canvas.winfo_width()
+		h = canvas.winfo_height() - 45
+		canvas.move("lines", -step, 0)
+		max = (1<<16) + 50
+		print((w-step-1, h-prev[0]*h/max, w-1, h-clear*h/max))
+		canvas.create_line(w-step-1, h+2-prev[0]*h/max, w-1, h+2-clear*h/max, tags=("clear", "lines"), fill="black", width=2)
+		canvas.create_line(w-step-1, h+2-prev[1]*h/max, w-1, h+2-red*h/max, tags=("red", "lines"), fill="red", width=2)
+		canvas.create_line(w-step-1, h+2-prev[2]*h/max, w-1, h+2-green*h/max, tags=("green", "lines"), fill="green", width=2)
+		canvas.create_line(w-step-1, h+2-prev[3]*h/max, w-1, h+2-blue*h/max, tags=("blue", "lines"), fill="blue", width=2)
+		canvas.delete("bars")
+		canvas.create_rectangle(0, h+5, clear*w/max, h+15, tags=("clear", "bars"), fill="black")
+		canvas.create_rectangle(0, h+15, red*w/max, h+25, tags=("red", "bars"), fill="red")
+		canvas.create_rectangle(0, h+25, green*w/max, h+35, tags=("green", "bars"), fill="green")
+		canvas.create_rectangle(0, h+35, blue*w/max, h+45, tags=("blue", "bars"), fill="blue")
+		prev = (clear, red, green, blue)
 		root.update()
-		print("b")
+
+	if True:
+		on_sensor_data(0, 10000, 0, 0)
+		on_sensor_data(100, 0, 65535, 0)
+		on_sensor_data(1000, 0, 65535, 1000)
+		on_sensor_data(10000, 0, 0, 0)
 
 	mainloop_done = False
 	def query_sensor():
 		prev_integration_time = integration_time.get()
 		prev_gain = gain.get()
+
+		i2c = I2CBitbanging(url)
+		tcs = TCS3472(i2c, 0x29)
+
+		tcs.write_regs(0x00, [0x01, 0xff - integration_time.get(), 0x80, 0x12, 0x34, 0x56, 0x78])
+		tcs.write_regs(0x0d, [0x00])
+		tcs.write_regs(0x0f, [gain.get()])  # gain
+		sleep(0.0024)
+		tcs.write_regs(0x00, [0x0b])
+
 		while not mainloop_done:
 			if tcs.led  != (led.get() != 0):
 				print("update LED")
