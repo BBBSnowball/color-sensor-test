@@ -28,18 +28,18 @@ def run_gui(serial_device):
     check_led.grid(column=i, row=row, sticky=W)
     ledvars.append(ledvar)
   row += 1
-  
-  integration_time = IntVar(value=62)
-  Label(root, text="Integration time").grid(column=0, row=row, sticky=(W,))
-  slider_integration_time = tkinter.Scale(root, from_=0, to=255, variable=integration_time, orient=tkinter.HORIZONTAL)
-  slider_integration_time.grid(column=1, row=row, columnspan=tcs_count-1, sticky=(E, W))
-  row += 1
-  
-  gain = IntVar(value=1)
-  Label(root, text="Gain").grid(column=0, row=row, sticky=(W,))
-  slider_gain = tkinter.Scale(root, from_=0, to=3, variable=gain, orient=tkinter.HORIZONTAL)
-  slider_gain.grid(column=1, row=row, columnspan=tcs_count-1, sticky=(E, W))
-  row += 1
+
+  slider_params = (("Integration time", 62, 0, 255, b"tcs%d.itime"), ("Gain", 1, 0, 3, b"tcs%d.gain"),
+    ("WS2812 red", 0, 0, 255, b"led0.r"), ("WS2812 green", 0, 0, 255, b"led0.g"), ("WS2812 blue", 0, 0, 255, b"led0.b"))
+  slider_vars = []
+  for p in slider_params:
+    var = IntVar(value=p[1])
+    slider_vars.append(var)
+    Label(root, text=p[0]).grid(column=0, row=row, sticky=(W,))
+    slider_inst = tkinter.Scale(root, from_=p[2], to=p[3], variable=var, orient=tkinter.HORIZONTAL, takefocus=True)
+    slider_inst.grid(column=1, row=row, columnspan=tcs_count-1, sticky=(E, W))
+    row += 1
+  integration_time, gain, led_red, led_green, led_blue = slider_vars
 
   color_as_text = tkinter.Entry(root)
   color_as_text.grid(column=0, row=row, columnspan=tcs_count, sticky=(E, W))
@@ -106,37 +106,33 @@ def run_gui(serial_device):
       else:
         print("unexpected line: %r" % line)
 
-    if b"tcs0.gain" in values:
-      gain.set(values[b"tcs0.gain"])
-    if b"tcs0.itime" in values:
-      integration_time.set(values[b"tcs0.itime"])
-    for i in range(tcs_count):
-      if b"tcs%d.led"%i in values:
-        ledvars[i].set(values[b"tcs%d.led"%i])
+    vars = ledvars + slider_vars
+    var_names = [b"tcs%d.led"%i for i in range(tcs_count)] + [p[4] for p in slider_params]
 
-    prev_integration_time = integration_time.get()
-    prev_gain = gain.get()
-    prev_led = [v.get() for v in ledvars]
+    for var, name in zip(vars, var_names):
+      if b"%d" in name:
+        name = name%0
+      if name in values:
+        print("%r is %r" % (name, values[name]))
+        var.set(values[name])
+      else:
+        print("value not sent by Arduino for %r" % name)
+
+    prev_values = [v.get() for v in vars]
 
     line = b""
     while not mainloop_done:
       #FIXME wait for reply
-      for i in range(tcs_count):
-        value = ledvars[i].get()
-        if prev_led[i] != value:
-          print("update LED %d" % i)
-          ser.write(b":tcs%d.led=%d\r\n" % (i, value))
-          prev_led[i] = value
-      if prev_integration_time != integration_time.get():
-        print("update integration_time")
-        for i in range(tcs_count):
-          ser.write(b":tcs%d.itime=%d\r\n" % (i, integration_time.get()))
-        prev_integration_time = integration_time.get()
-      if prev_gain != gain.get():
-        print("update gain")
-        for i in range(tcs_count):
-          ser.write(b":tcs%d.gain=%d\r\n" % (i, gain.get()))
-        prev_gain = gain.get()
+      current_values = [v.get() for v in vars]
+      for name, prev, current in zip(var_names, prev_values, current_values):
+        if prev != current:
+          print("update %s" % name)
+          if b"%d" in name:
+            for i in range(tcs_count):
+              ser.write(b":%s=%d\r\n" % (name%i, current))
+          else:
+            ser.write(b":%s=%d\r\n" % (name, current))
+      prev_values = current_values
 
       line += ser.read()
       if len(line) > 0 and line[-1] == b"\n"[0]:
