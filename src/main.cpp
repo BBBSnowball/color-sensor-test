@@ -439,7 +439,11 @@ invalid_format:
 }
 
 void loop() {
-  if (auto_poll) {
+  static unsigned long last_poll = -200;
+  if (!auto_poll) {
+    last_poll = millis() - 200;
+  } if (auto_poll && Serial.availableForWrite() > 10 && millis() - last_poll > 50) {
+    last_poll = millis();
     pollSensors();
   }
 
