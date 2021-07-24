@@ -417,6 +417,7 @@ void handleInput(char* inbuf, uint8_t inbuf_cnt) {
           digitalWrite(LED0, !!value);
         else
           digitalWrite(LED1, !!value);
+        ok = true;
       } else
         goto invalid_command;
     } else
