@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <BitBang_I2C.h>
+#include <FastLED.h>
 
 constexpr int TCS_COUNT = 3;
 
@@ -10,6 +11,9 @@ constexpr int I2C1_SDA = 5;
 constexpr int I2C1_SCL = 6;
 constexpr int I2C2_SDA = 14;
 constexpr int I2C2_SCL = 16;
+
+constexpr int NUM_LEDS = 1;
+constexpr int LED_PIN = A3;
 
 BBI2C bbi2c[TCS_COUNT-1];
 
@@ -277,6 +281,8 @@ uint8_t TCS3472::tmp[10];
 
 TCS3472 tcs[TCS_COUNT] = { NULL, bbi2c+0, bbi2c+1 };
 
+CRGB leds[NUM_LEDS];
+
 void setup() {
   Serial.println(F("%startup: TCS3472 Test"));
 
@@ -299,6 +305,10 @@ void setup() {
   bbi2c[1].iSCL = I2C2_SCL;
   bbi2c[1].bWire = 0;
   I2CInit(bbi2c+1, 100000L);
+
+  FastLED.addLeds<WS2812, LED_PIN, RGB>(leds, NUM_LEDS);
+  leds[0] = CRGB::Green; leds[0] /= 10;
+  FastLED.show();
 }
 
 void loop1() {
@@ -408,6 +418,20 @@ void handleInput(char* inbuf, uint8_t inbuf_cnt) {
       Serial.print(F(".led="));
       Serial.println(digitalRead(LED[i]));
     }
+    for (int i=0; i<NUM_LEDS; i++) {
+      Serial.print(F(":led"));
+      Serial.print(i);
+      Serial.print(F(".r="));
+      Serial.println(leds[i].red);
+      Serial.print(F(":led"));
+      Serial.print(i);
+      Serial.print(F(".g="));
+      Serial.println(leds[i].green);
+      Serial.print(F(":led"));
+      Serial.print(i);
+      Serial.print(F(".b="));
+      Serial.println(leds[i].blue);
+    }
     Serial.println(F("%end"));
     return;
   } else if (memcmp(inbuf, ":poll", 6) == 0) {
@@ -447,6 +471,19 @@ void handleInput(char* inbuf, uint8_t inbuf_cnt) {
         ok = true;
       } else
         goto invalid_command;
+    } else if (inbuf_cnt > 7 && memcmp(inbuf, ":led", 4) == 0 && inbuf[4] >= '0' && inbuf[4]-'0' < NUM_LEDS && inbuf[5] == '.') {
+      uint8_t led_index = inbuf[4] - '0';
+
+      if (memcmp(inbuf+6, "r=", 2) == 0)
+        leds[led_index].r = value;
+      else if (memcmp(inbuf+6, "g=", 2) == 0)
+        leds[led_index].g = value;
+      else if (memcmp(inbuf+6, "b=", 2) == 0) {
+        leds[led_index].b = value;
+      } else
+        goto invalid_command;
+      ok = true;
+      FastLED.show();
     } else
       goto invalid_command;
 
