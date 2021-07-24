@@ -34,6 +34,7 @@ class TCS3472 {
   int useWire;
   bool initialized;
   uint8_t gain, integrationTime;
+  uint8_t part_number_ident;
 
   static uint8_t tmp[10];
 public:
@@ -134,6 +135,7 @@ public:
       return false;
     }
     // 0x44 = TCS34721 or TCS34725 (I2C with VDD), 0x4D = TCS34723 or TCS34727 (I2C with 1.8V)
+    this->part_number_ident = id_reg;
     if (id_reg != 0x44 && id_reg != 0x4D) {
       if (verbose) {
         Serial.print(F("#warn: Reg 0x12 should be 0x44 or 0x4D but it is 0x"));
@@ -142,6 +144,10 @@ public:
       return false;
     }
     return true;
+  }
+
+  uint8_t getPartNumberIdentification() {
+    return part_number_ident;
   }
 
   uint8_t getGain() {
@@ -370,6 +376,10 @@ void handleInput(char* inbuf, uint8_t inbuf_cnt) {
       Serial.print(i);
       Serial.print(F(".itime="));
       Serial.println(tcs[i].getIntegrationTime());
+      Serial.print(F(":tcs"));
+      Serial.print(i);
+      Serial.print(F(".partnum="));
+      Serial.println(tcs[i].getPartNumberIdentification());
       Serial.print(F(":tcs"));
       Serial.print(i);
       Serial.print(F(".led="));
