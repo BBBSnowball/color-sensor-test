@@ -200,11 +200,8 @@ public:
   }
 
   bool setIntegrationTime(uint8_t integrationTime) {
-    if (integrationTime > 4)
-      return false;
-
     if (initialized) {
-      if (!writeReg(0x0f, 0xff - integrationTime))
+      if (!writeReg(0x01, 0xff - integrationTime))
         return false;
     }
 
