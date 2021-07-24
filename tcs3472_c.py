@@ -10,37 +10,39 @@ import threading
 import re
 
 def run_gui(serial_device):
+  tcs_count = 3
+
   root = tkinter.Tk()
-  root.columnconfigure(1, weight=1)
+  root.columnconfigure(tcs_count-1, weight=1)
   root.rowconfigure(0, weight=1)
 
   row = 0
   canvas = tkinter.Canvas(root)
-  canvas.grid(column=0, row=row, sticky=(N, E, W, S), columnspan=2)
+  canvas.grid(column=0, row=row, sticky=(N, E, W, S), columnspan=tcs_count)
   row += 1
 
-  led0 = IntVar(value=0)
-  check_led0 = tkinter.Checkbutton(root, variable=led0, text="LED 0")
-  check_led0.grid(column=0, row=row, columnspan=2, sticky=W)
-  led1 = IntVar(value=0)
-  check_led1 = tkinter.Checkbutton(root, variable=led1, text="LED 1")
-  check_led1.grid(column=1, row=row, columnspan=2, sticky=W)
+  ledvars = []
+  for i in range(tcs_count):
+    ledvar = IntVar(value=0)
+    check_led = tkinter.Checkbutton(root, variable=ledvar, text="LED %d"%i)
+    check_led.grid(column=i, row=row, sticky=W)
+    ledvars.append(ledvar)
   row += 1
   
   integration_time = IntVar(value=62)
   Label(root, text="Integration time").grid(column=0, row=row, sticky=(W,))
   slider_integration_time = tkinter.Scale(root, from_=0, to=255, variable=integration_time, orient=tkinter.HORIZONTAL)
-  slider_integration_time.grid(column=1, row=row, sticky=(E, W))
+  slider_integration_time.grid(column=1, row=row, columnspan=tcs_count-1, sticky=(E, W))
   row += 1
   
   gain = IntVar(value=1)
   Label(root, text="Gain").grid(column=0, row=row, sticky=(W,))
   slider_gain = tkinter.Scale(root, from_=0, to=3, variable=gain, orient=tkinter.HORIZONTAL)
-  slider_gain.grid(column=1, row=row, sticky=(E, W))
+  slider_gain.grid(column=1, row=row, columnspan=tcs_count-1, sticky=(E, W))
   row += 1
 
   color_as_text = tkinter.Entry(root)
-  color_as_text.grid(column=0, row=row, columnspan=2, sticky=(E, W))
+  color_as_text.grid(column=0, row=row, columnspan=tcs_count, sticky=(E, W))
   color_as_text.insert(0, "...")
   color_as_text.configure(state = "readonly")
   row += 1
@@ -51,7 +53,7 @@ def run_gui(serial_device):
     global prev
     step = 1
     w = canvas.winfo_width()
-    h = canvas.winfo_height() - 45 - 50
+    h = canvas.winfo_height() - 45*tcs_count
     max = (1<<16) + 50
     if sensor_index == 0:
       color_as_text.configure(state = "normal")
@@ -64,25 +66,15 @@ def run_gui(serial_device):
       canvas.create_line(w-step-1, h+2-prev[1]*h/max, w-1, h+2-red*h/max, tags=("red", "lines"), fill="red", width=2)
       canvas.create_line(w-step-1, h+2-prev[2]*h/max, w-1, h+2-green*h/max, tags=("green", "lines"), fill="green", width=2)
       canvas.create_line(w-step-1, h+2-prev[3]*h/max, w-1, h+2-blue*h/max, tags=("blue", "lines"), fill="blue", width=2)
-      canvas.delete("bars")
-      canvas.create_rectangle(0, h+5, clear*w/max, h+15, tags=("clear", "bars"), fill="black")
-      canvas.create_rectangle(0, h+15, red*w/max, h+25, tags=("red", "bars"), fill="red")
-      canvas.create_rectangle(0, h+25, green*w/max, h+35, tags=("green", "bars"), fill="green")
-      canvas.create_rectangle(0, h+35, blue*w/max, h+45, tags=("blue", "bars"), fill="blue")
       prev = (clear, red, green, blue)
-      root.update()
-    elif sensor_index == 1:
-      canvas.delete("bars1")
-      canvas.create_rectangle(0, h+45+5,  clear*w/max, h+45+15, tags=("clear", "bars1"), fill="black")
-      canvas.create_rectangle(0, h+45+15, red*w/max, h+45+25, tags=("red", "bars1"), fill="red")
-      canvas.create_rectangle(0, h+45+25, green*w/max, h+45+35, tags=("green", "bars1"), fill="green")
-      canvas.create_rectangle(0, h+45+35, blue*w/max, h+45+45, tags=("blue", "bars1"), fill="blue")
 
-  if False:
-    on_sensor_data(0, 10000, 0, 0)
-    on_sensor_data(100, 0, 65535, 0)
-    on_sensor_data(1000, 0, 65535, 1000)
-    on_sensor_data(10000, 0, 0, 0)
+    bars_tag = "bars%d" % sensor_index
+    canvas.delete(bars_tag)
+    h0 = h + 45*sensor_index
+    canvas.create_rectangle(0, h0+5,  clear*w/max, h0+15, tags=("clear", bars_tag), fill="black")
+    canvas.create_rectangle(0, h0+15, red  *w/max, h0+25, tags=("red",   bars_tag), fill="red")
+    canvas.create_rectangle(0, h0+25, green*w/max, h0+35, tags=("green", bars_tag), fill="green")
+    canvas.create_rectangle(0, h0+35, blue *w/max, h0+45, tags=("blue",  bars_tag), fill="blue")
 
   mainloop_done = False
   def query_sensor():
@@ -118,36 +110,32 @@ def run_gui(serial_device):
       gain.set(values[b"tcs0.gain"])
     if b"tcs0.itime" in values:
       integration_time.set(values[b"tcs0.itime"])
-    if b"tcs0.led" in values:
-      led0.set(values[b"tcs0.led"])
-    if b"tcs1.led" in values:
-      led1.set(values[b"tcs1.led"])
+    for i in range(tcs_count):
+      if b"tcs%d.led"%i in values:
+        ledvars[i].set(values[b"tcs%d.led"%i])
 
     prev_integration_time = integration_time.get()
     prev_gain = gain.get()
-    prev_led0 = led0.get()
-    prev_led1 = led1.get()
+    prev_led = [v.get() for v in ledvars]
 
     line = b""
     while not mainloop_done:
       #FIXME wait for reply
-      if prev_led0 != led0.get():
-        print("update LED 0")
-        ser.write(b":tcs0.led=%d\r\n" % led0.get())
-        prev_led0 = led0.get()
-      if prev_led1 != led1.get():
-        print("update LED 1")
-        ser.write(b":tcs1.led=%d\r\n" % led1.get())
-        prev_led1 = led1.get()
+      for i in range(tcs_count):
+        value = ledvars[i].get()
+        if prev_led[i] != value:
+          print("update LED %d" % i)
+          ser.write(b":tcs%d.led=%d\r\n" % (i, value))
+          prev_led[i] = value
       if prev_integration_time != integration_time.get():
         print("update integration_time")
-        ser.write(b":tcs0.itime=%d\r\n" % integration_time.get())
-        ser.write(b":tcs1.itime=%d\r\n" % integration_time.get())
+        for i in range(tcs_count):
+          ser.write(b":tcs%d.itime=%d\r\n" % (i, integration_time.get()))
         prev_integration_time = integration_time.get()
       if prev_gain != gain.get():
         print("update gain")
-        ser.write(b":tcs0.gain=%d\r\n" % gain.get())
-        ser.write(b":tcs1.gain=%d\r\n" % gain.get())
+        for i in range(tcs_count):
+          ser.write(b":tcs%d.gain=%d\r\n" % (i, gain.get()))
         prev_gain = gain.get()
 
       line += ser.read()
@@ -160,12 +148,14 @@ def run_gui(serial_device):
         elif re.match(b':tcs[01][.]present=[01]', line):
           #TODO do something useful
           print(line)
-        elif re.match(b':tcs([01])[.]color=[(]0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+)[)]', line):
+        elif re.match(b':tcs(\d+)[.]color=[(]0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+)[)]', line):
           #print("color: %r" % line)
-          m = re.match(b':tcs([01])[.]color=[(]0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+)[)]', line)
+          m = re.match(b':tcs(\d+)[.]color=[(]0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+)[)]', line)
           tcs_index = int(m[1])
           if not mainloop_done:
             root.after_idle(on_sensor_data, tcs_index, int(m[2], 16), int(m[3], 16), int(m[4], 16), int(m[5], 16))
+        else:
+          print("line not recognized: %r" % line)
         line = b""
   t = threading.Thread(target=query_sensor)
   t.start()

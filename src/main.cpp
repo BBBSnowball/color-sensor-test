@@ -2,13 +2,16 @@
 #include <Wire.h>
 #include <BitBang_I2C.h>
 
-constexpr int LED0 = 4;
-constexpr int LED1 = 7;
+constexpr int TCS_COUNT = 3;
+
+constexpr int LED[TCS_COUNT] = { 4, 7, 10 };
 
 constexpr int I2C1_SDA = 5;
 constexpr int I2C1_SCL = 6;
+constexpr int I2C2_SDA = 14;
+constexpr int I2C2_SCL = 16;
 
-BBI2C i2c1;
+BBI2C bbi2c[TCS_COUNT-1];
 
 void printHex(uint32_t x, uint8_t digits) {
   char buf[9];
@@ -31,15 +34,15 @@ void printHex(uint32_t x) { printHex(x, 8); }
 
 class TCS3472 {
   static const uint8_t address = 0x29;
-  int useWire;
+  BBI2C* i2cInstance;
   bool initialized;
   uint8_t gain, integrationTime;
   uint8_t part_number_ident;
 
   static uint8_t tmp[10];
 public:
-  TCS3472(int useWire) {
-    this->useWire = useWire;
+  TCS3472(BBI2C* i2cInstance) {  // i2cInstance==NULL -> use Wire
+    this->i2cInstance = i2cInstance;
     this->initialized = false;
     this->gain = 1;
     this->integrationTime = 63;
@@ -48,7 +51,7 @@ public:
 	bool readRegs(uint8_t regaddr, uint8_t* buf, uint8_t length) {
     int retry = 2;
     again:
-    if (useWire) {
+    if (!i2cInstance) {
       Wire.beginTransmission(address);
       Wire.write(0xa0 | (regaddr & 0x1f));
       switch (Wire.endTransmission()) {
@@ -72,14 +75,14 @@ public:
       return true;
     } else {
       tmp[0] = 0xa0 | (regaddr & 0x1f);
-      if (I2CWrite(&i2c1, address, tmp, 1) != 1) {
+      if (I2CWrite(i2cInstance, address, tmp, 1) != 1) {
         if (!retry)
           return false;
         retry--;
         goto again;
       }
 
-      if (!I2CRead(&i2c1, address, buf, length)) {
+      if (!I2CRead(i2cInstance, address, buf, length)) {
         if (!retry)
           return false;
         retry--;
@@ -93,7 +96,7 @@ public:
 	bool writeRegs(uint8_t regaddr, const uint8_t* buf, uint8_t length) {
     int retry = 2;
     again:
-    if (useWire) {
+    if (!i2cInstance) {
       Wire.beginTransmission(address);
       Wire.write(0xa0 | (regaddr & 0x1f));
       for (int i=0; i<length; i++)
@@ -113,7 +116,7 @@ public:
         return false;  // too long
       tmp[0] = 0xa0 | (regaddr & 0x1f);
       memcpy(tmp+1, buf, length);
-      if (I2CWrite(&i2c1, address, tmp, length+1) != length+1) {
+      if (I2CWrite(i2cInstance, address, tmp, length+1) != length+1) {
         if (!retry)
           return false;
         retry--;
@@ -130,7 +133,7 @@ public:
 	bool clearInterrupt() {
     int retry = 2;
     again:
-    if (useWire) {
+    if (!i2cInstance) {
       Wire.beginTransmission(address);
       Wire.write(0xe6);
       switch (Wire.endTransmission()) {
@@ -145,7 +148,7 @@ public:
       return true;
     } else {
       tmp[0] = 0xe6;
-      if (I2CWrite(&i2c1, address, tmp, 1) != 1) {
+      if (I2CWrite(i2cInstance, address, tmp, 1) != 1) {
         if (!retry)
           return false;
         retry--;
@@ -272,24 +275,30 @@ public:
 };
 uint8_t TCS3472::tmp[10];
 
-TCS3472 tcs[2] = { true, false };
+TCS3472 tcs[TCS_COUNT] = { NULL, bbi2c+0, bbi2c+1 };
 
 void setup() {
   Serial.println(F("%startup: TCS3472 Test"));
 
-  pinMode(LED0, OUTPUT);
-  pinMode(LED1, OUTPUT);
-  digitalWrite(LED0, 0);
-  digitalWrite(LED1, 0);
+  for (size_t i=0; i<sizeof(LED)/sizeof(*LED); i++) {
+    pinMode(LED[i], OUTPUT);
+    digitalWrite(LED[i], 0);
+  }
 
   Wire.begin();
   Wire.setClock(400000);
 
-  memset(&i2c1, 0, sizeof(i2c1));
-  i2c1.iSDA = I2C1_SDA;
-  i2c1.iSCL = I2C1_SCL;
-  i2c1.bWire = 0;
-  I2CInit(&i2c1, 100000L);
+  memset(bbi2c+0, 0, sizeof(*bbi2c));
+  bbi2c[0].iSDA = I2C1_SDA;
+  bbi2c[0].iSCL = I2C1_SCL;
+  bbi2c[0].bWire = 0;
+  I2CInit(bbi2c+0, 100000L);
+
+  memset(bbi2c+1, 0, sizeof(*bbi2c));
+  bbi2c[1].iSDA = I2C2_SDA;
+  bbi2c[1].iSCL = I2C2_SCL;
+  bbi2c[1].bWire = 0;
+  I2CInit(bbi2c+1, 100000L);
 }
 
 void loop1() {
@@ -298,10 +307,10 @@ void loop1() {
 }
 
 void loop2() {
-  digitalWrite(LED0, 1); delay(500);
-  digitalWrite(LED0, 0); delay(500);
-  digitalWrite(LED1, 1); delay(500);
-  digitalWrite(LED1, 0); delay(500);
+  for (size_t i=0; i<sizeof(LED)/sizeof(*LED); i++) {
+    digitalWrite(LED[i], 1); delay(500);
+    digitalWrite(LED[i], 0); delay(500);
+  }
 }
 
 void loop3() {
@@ -320,56 +329,40 @@ void loop3() {
   delay(2000);
 }
 
-static bool tcs_present[2] = { false, false };
+static bool tcs_present[TCS_COUNT] = { false, false };
 static bool auto_poll = false, echo = true;
 
 void pollSensors() {
   static TCS3472::Measurement color;
 
-  bool present = tcs[0].prepare(true);
-  if (present != tcs_present[0]) {
-    tcs_present[0] = present;
-    Serial.print(F(":tcs0.present="));
-    Serial.println(present);
-  }
-  if (present) {
-    if (tcs[0].readMeasurement(&color)) {
-      Serial.print(F(":tcs0.color=(0x"));
-      printHex(color.brightness);
-      Serial.print(F(", 0x"));
-      printHex(color.red);
-      Serial.print(F(", 0x"));
-      printHex(color.green);
-      Serial.print(F(", 0x"));
-      printHex(color.blue);
-      Serial.println(F(")"));
+  for (uint8_t tcs_index=0; tcs_index<TCS_COUNT; tcs_index++) {
+    bool present = tcs[tcs_index].prepare(true);
+    if (present != tcs_present[tcs_index]) {
+      tcs_present[tcs_index] = present;
+      Serial.print(F(":tcs0.present="));
+      Serial.println(present);
     }
-  }
-
-  present = tcs[1].prepare(true);
-  if (present != tcs_present[1]) {
-    tcs_present[1] = present;
-    Serial.print(F(":tcs1.present="));
-    Serial.println(present);
-  }
-  if (present) {
-    if (tcs[1].readMeasurement(&color)) {
-      Serial.print(F(":tcs1.color=(0x"));
-      printHex(color.brightness);
-      Serial.print(F(", 0x"));
-      printHex(color.red);
-      Serial.print(F(", 0x"));
-      printHex(color.green);
-      Serial.print(F(", 0x"));
-      printHex(color.blue);
-      Serial.println(F(")"));
+    if (present) {
+      if (tcs[tcs_index].readMeasurement(&color)) {
+        Serial.print(F(":tcs"));
+        Serial.print(tcs_index);
+        Serial.print(F(".color=(0x"));
+        printHex(color.brightness);
+        Serial.print(F(", 0x"));
+        printHex(color.red);
+        Serial.print(F(", 0x"));
+        printHex(color.green);
+        Serial.print(F(", 0x"));
+        printHex(color.blue);
+        Serial.println(F(")"));
+      }
     }
   }
 }
 
 void allSensorRegs() {
   uint8_t buf[8];
-  for (uint8_t tcs_index=0; tcs_index<2; tcs_index++) {
+  for (uint8_t tcs_index=0; tcs_index<TCS_COUNT; tcs_index++) {
     Serial.print(F("TCS3472: tcs"));
     Serial.println(tcs_index);
     Serial.println(F("    00 01 02 03 04 05 06 07"));
@@ -393,7 +386,7 @@ void allSensorRegs() {
 void handleInput(char* inbuf, uint8_t inbuf_cnt) {
   if (inbuf_cnt == 1 && inbuf[0] == '?') {
     Serial.println(F("%values"));
-    for (int i=0; i<2; i++) {
+    for (int i=0; i<TCS_COUNT; i++) {
       Serial.print(F(":tcs"));
       Serial.print(i);
       Serial.print(F(".present="));
@@ -413,10 +406,7 @@ void handleInput(char* inbuf, uint8_t inbuf_cnt) {
       Serial.print(F(":tcs"));
       Serial.print(i);
       Serial.print(F(".led="));
-      if (i == 0)
-        Serial.println(digitalRead(LED0));
-      else
-        Serial.println(digitalRead(LED1));
+      Serial.println(digitalRead(LED[i]));
     }
     Serial.println(F("%end"));
     return;
@@ -445,7 +435,7 @@ void handleInput(char* inbuf, uint8_t inbuf_cnt) {
     } else if (memcmp(inbuf, ":echo=", 6) == 0) {
       echo = !!value;
       ok = true;
-    } else if (inbuf_cnt > 7 && memcmp(inbuf, ":tcs", 4) == 0 && (inbuf[4] == '0' || inbuf[4] == '1') && inbuf[5] == '.') {
+    } else if (inbuf_cnt > 7 && memcmp(inbuf, ":tcs", 4) == 0 && inbuf[4] >= '0' && inbuf[4]-'0' < TCS_COUNT && inbuf[5] == '.') {
       uint8_t tcs_index = inbuf[4] - '0';
 
       if (memcmp(inbuf+6, "gain=", 5) == 0)
@@ -453,10 +443,7 @@ void handleInput(char* inbuf, uint8_t inbuf_cnt) {
       else if (memcmp(inbuf+6, "itime=", 6) == 0)
         ok = tcs[tcs_index].setIntegrationTime(value);
       else if (memcmp(inbuf+6, "led=", 4) == 0) {
-        if (tcs_index == 0)
-          digitalWrite(LED0, !!value);
-        else
-          digitalWrite(LED1, !!value);
+        digitalWrite(LED[tcs_index], !!value);
         ok = true;
       } else
         goto invalid_command;
