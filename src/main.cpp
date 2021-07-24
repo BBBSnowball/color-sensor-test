@@ -127,6 +127,34 @@ public:
     return writeRegs(regaddr, &value, 1);
   }
 
+	bool clearInterrupt() {
+    int retry = 2;
+    again:
+    if (useWire) {
+      Wire.beginTransmission(address);
+      Wire.write(0xe6);
+      switch (Wire.endTransmission()) {
+        case 0: break;
+        case 1: return false;
+        default:
+          if (!retry)
+            return false;
+          retry--;
+          goto again;
+      }
+      return true;
+    } else {
+      tmp[0] = 0xe6;
+      if (I2CWrite(&i2c1, address, tmp, 1) != 1) {
+        if (!retry)
+          return false;
+        retry--;
+        goto again;
+      }
+      return true;
+    }
+  }
+
   bool check(bool verbose) {
     uint8_t id_reg;
     if (!readRegs(0x12, &id_reg, 1)) {
@@ -190,7 +218,10 @@ public:
     if (!check(verbose))
       return false;
 
-    uint8_t values[] = { 0x01, (uint8_t)(0xff - integrationTime), 0x80, 0x12, 0x34, 0x56, 0x78 };
+    // Set low threshold > high threshold so we will always get an interrupt because the interrupt
+    // bit is the only thing that tells us that there is a new value (because we cannot clear the
+    // valid bit).
+    uint8_t values[] = { 0x11, (uint8_t)(0xff - integrationTime), 0x00, 0x80, 0xff, 0xff, 0x00, 0x00 };
     if (!writeRegs(0x00, values, sizeof(values)))
       return false;
     if (!writeReg(0x0d, 0x00))
@@ -225,9 +256,11 @@ public:
       this->initialized = false;
       return false;
     }
-    //FIXME Can or should we reset that bit?
-    if (!(status_reg & 1))
+
+    if (!(status_reg & 0x10))
       return false;
+    clearInterrupt();
+
     // datasheet says to use two byte reads with "read word protocol bit set" but there is no such bit in the command register
     // -> auto-increment read should be good enough to trigger the shadow register behavior, I guess
     if (!readRegs(0x14, (uint8_t*)result, 8))
