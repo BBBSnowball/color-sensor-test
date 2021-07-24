@@ -51,7 +51,7 @@ def run_gui(serial_device):
     global prev
     step = 1
     w = canvas.winfo_width()
-    h = canvas.winfo_height() - 45 - 45
+    h = canvas.winfo_height() - 45 - 50
     max = (1<<16) + 50
     if sensor_index == 0:
       color_as_text.configure(state = "normal")
