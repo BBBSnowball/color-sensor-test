@@ -9,6 +9,8 @@ There are two ways to connect the sensor:
 
 Both have a simple tkinter GUI but the second one has more features.
 
+![](images/tcs3472-gui.png)
+
 
 Pinout (FTDI)
 -------------
@@ -52,6 +54,33 @@ Most of the pins can be changed at the top of `main.cpp` except for the first se
 * VCC: VIN of sensors (assuming your board has a voltage regulator and level shifters)
 * GND: GND of sensors, "kathode" (pin 3) of WS2812D-F8
 
+
+Color filter compensation
+-------------------------
+
+The color filters aren't perfect so the channels also react to other colors. This can be seen by Figure 2 in the [datasheet](https://cdn-shop.adafruit.com/datasheets/TCS34725.pdf):
+
+![](images/spectral-responsivity.svg)
+
+The wavelengths of a WS2812D-F8 are quite close to the test wavelength in "Optical Characteristics" (to within 5 nm), which are presumably what the TCS was designed for. We should achieve similar
+results. Here is my test setup (the second one with more distance to not saturate the sensor at the high gain setting):
+
+![](images/tcs3472-test1.png)
+![](images/tcs3472-test2.png)
+
+**FIXME**: insert bar graph with error bars for my measurements
+
+We can measure which values the sensors report under red/green/blue illumination. We write them into a matrix, invert it (using numpy) and use that to calculate real values from measured values.
+The sensors are slightly different and we use the same compensation so the result isn't perfect:
+
+![](images/tcs3472-yellow-over-first-sensor.png)
+
+This is with the WS2812 set to full yellow (`#ffff00`) over the first sensor. The others see it at an angle, which reduces the amount of red for some reason [^1] (but this is consistent across measurements).
+We can see that the false blue measurement is reduced to about zero. The smaller orange bar is the sum of the colors and it should be almost equal to the black bar (the one without any color filters).
+This is actually slightly worse than with the uncalibrated values.
+
+[^1]: The LED also appears green to the eye when looking at the side rather than the front. However, the effect on the measurement seems to be less for the first sensor (the one baught at Ebay instead
+      of AliExpress) so it seems that there is some additional directionality of the sensors at play.
 
 License
 -------
