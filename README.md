@@ -60,10 +60,14 @@ Color filter compensation
 
 The color filters aren't perfect so the channels also react to other colors. This can be seen by Figure 2 in the [datasheet](https://cdn-shop.adafruit.com/datasheets/TCS34725.pdf):
 
-![](images/spectral-responsivity.svg)
+<img src="images/spectral-responsivity.svg">
 
-The wavelengths of a WS2812D-F8 are quite close to the test wavelength in "Optical Characteristics" (to within 5 nm), which are presumably what the TCS was designed for. We should achieve similar
-results. Here is my test setup (the second one with more distance to not saturate the sensor at the high gain setting):
+The wavelengths of a WS2812D-F8 are quite close to the test wavelength in "Optical Characteristics" (to within 10 nm), which are presumably what the TCS was designed for. We should achieve similar
+results.
+
+<img src="images/tcs3472-test-conditions.png">
+
+Here is my test setup (the second one with more distance to not saturate the sensor at the high gain setting):
 
 <img src="images/tcs3472-test1.jpg" width="400"><img src="images/tcs3472-test2.jpg" width="400">
 
