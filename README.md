@@ -71,19 +71,27 @@ Here is my test setup (the second one with more distance to not saturate the sen
 
 <img src="images/tcs3472-test1.jpg" width="400"><img src="images/tcs3472-test2.jpg" width="400">
 
-**FIXME**: insert bar graph with error bars for my measurements
+We can measure which values the sensors report under red/green/blue illumination. Here are the results for my three sensors versus the datasheet:
 
-We can measure which values the sensors report under red/green/blue illumination. We write them into a matrix, invert it (using numpy) and use that to calculate real values from measured values.
+<img src="images/ws2812-test.svg">
+
+The third sensor is not as consistent as the others and the "G->G" value is even outside the range that is specified in the datasheet. The actual range in practice seems to be much small than indicated
+by the datasheet but keep in mind that my sensors are from two lots only and I have tested at room temperature.
+
+We write the values into a matrix (embedded in the diagram above). An ideal sensor would have 1's on the diagonal and zero everywhere else (i.e. no influence on other color channels). Our matrix isn't
+too far from that but there is significant cross-talk between green and blue. This matrix goes from actual to measured values so we invert it (using numpy). The inverted matrix can be used to calculate
+real values from measured ones.
+
 The sensors are slightly different and we use the same compensation so the result isn't perfect:
 
 ![](images/tcs3472-yellow-over-first-sensor.png)
 
-This is with the WS2812 set to full yellow (`#ffff00`) over the first sensor. The others see it at an angle, which reduces the amount of red for some reason<sup>1</sup> (but this is consistent across measurements).
+This is with the WS2812 set to full yellow (`#ffff00`) over the first sensor. The others see it at an angle, which reduces the amount of red for some reason<sup>1</sup>.
 We can see that the false blue measurement is reduced to about zero. The smaller orange bar is the sum of the colors and it should be almost equal to the black bar (the one without any color filters).
 This is actually slightly worse than with the uncalibrated values.
 
-<sup>1</sup> The LED also appears green to the eye when looking at the side rather than the front. However, the effect on the measurement seems to be less for the first sensor (the one baught at Ebay instead
-      of AliExpress) so it seems that there is some additional directionality of the sensors at play.
+<sup>1</sup> This is consistent across measurements. The LED also appears green to the eye when looking at the side rather than the front. However, the effect on the measurement seems to be less
+      for the first sensor (the one bought at Ebay instead of AliExpress) so there is some additional directionality of the sensors at play.
 
 License
 -------
