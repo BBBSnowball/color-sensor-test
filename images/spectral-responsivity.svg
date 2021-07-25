@@ -73,15 +73,6 @@
            id="tspan2599"
            style="stroke-width:0.352778">Copyright</tspan></text>
       <text
-         style="font-variant:normal;font-weight:normal;font-size:2.46944px;font-family:PSOsymclas;-inkscape-font-specification:PSOsymclas;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
-         id="text2605"
-         x="64.287247"
-         y="149.0116"><tspan
-           x="64.287247"
-           y="149.0116"
-           id="tspan2603"
-           style="stroke-width:0.352778">E</tspan></text>
-      <text
          style="font-variant:normal;font-weight:normal;font-size:2.46944px;font-family:Helvetica;-inkscape-font-specification:Helvetica;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
          id="text2609"
          x="67.076981"
@@ -594,61 +585,5 @@
            id="path2873" />
       </g>
     </g>
-    <text
-       y="212.8291"
-       x="76.220711"
-       id="text3015"
-       style="font-variant:normal;font-weight:normal;font-size:2.46944px;font-family:PSOspsbsymbbb;-inkscape-font-specification:PSOspsbsymbbb;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"><tspan
-         style="stroke-width:0.352778"
-         id="tspan3013"
-         y="212.8291"
-         x="76.220711"></tspan></text>
-    <text
-       y="198.43576"
-       x="88.919296"
-       id="text3037"
-       style="font-variant:normal;font-weight:normal;font-size:2.46944px;font-family:PSOspsbsymbbb;-inkscape-font-specification:PSOspsbsymbbb;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"><tspan
-         style="stroke-width:0.352778"
-         id="tspan3035"
-         y="198.43576"
-         x="88.919296"></tspan></text>
-    <text
-       y="28.382986"
-       x="-191.15443"
-       id="text3103"
-       style="font-variant:normal;font-weight:normal;font-size:2.82222px;font-family:PSOspsbsymbbb;-inkscape-font-specification:PSOspsbsymbbb;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
-       transform="rotate(-90)"><tspan
-         style="stroke-width:0.352778"
-         id="tspan3101"
-         y="28.382986"
-         x="-191.15443"></tspan></text>
-    <text
-       y="176.33775"
-       x="97.385963"
-       id="text3197"
-       style="font-variant:normal;font-weight:normal;font-size:2.46944px;font-family:PSOspsbsymbbb;-inkscape-font-specification:PSOspsbsymbbb;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"><tspan
-         style="stroke-width:0.352778"
-         id="tspan3195"
-         y="176.33775"
-         x="97.385963"></tspan></text>
-    <text
-       y="206.30975"
-       x="54.036633"
-       id="text3219"
-       style="font-variant:normal;font-weight:normal;font-size:2.46944px;font-family:PSOspsbsymbbb;-inkscape-font-specification:PSOspsbsymbbb;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"><tspan
-         style="stroke-width:0.352778"
-         id="tspan3217"
-         y="206.30975"
-         x="54.036633"></tspan></text>
-    <text
-       y="117.02898"
-       x="-183.19576"
-       id="text3347"
-       style="font-variant:normal;font-weight:normal;font-size:2.82222px;font-family:PSOspsbsymbbb;-inkscape-font-specification:PSOspsbsymbbb;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
-       transform="rotate(-90)"><tspan
-         style="stroke-width:0.352778"
-         id="tspan3345"
-         y="117.02898"
-         x="-183.19576"></tspan></text>
   </g>
 </svg>
