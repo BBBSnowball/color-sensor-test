@@ -10,6 +10,7 @@ from tkinter import N, E, W, S, X, Y, LEFT, IntVar, Label
 import threading
 import re
 import numpy, numpy.linalg
+import tempfile
 
 def run_gui(serial_device):
   tcs_count = 3
@@ -85,6 +86,157 @@ def run_gui(serial_device):
   def print_ratios(*args):
     print("ratios: " + ratio_text.get())
   bt_print_ratios.configure(command=print_ratios)
+
+  csvgen = tkinter.Frame(root)
+  csvgen.grid(column=0, row=row, sticky=(N, E, W, S), columnspan=tcs_count)
+  row += 1
+  actuator_var = IntVar(value=0)
+  tkinter.Radiobutton(csvgen, text="Int. Time", variable=actuator_var, value=0).pack(side=LEFT)
+  tkinter.Radiobutton(csvgen, text="WS2812",    variable=actuator_var, value=1).pack(side=LEFT)
+  tkinter.Radiobutton(csvgen, text="Monitor",   variable=actuator_var, value=2).pack(side=LEFT)
+  csvgen_progress_text = tkinter.StringVar(value="not started")
+  tkinter.Label(csvgen, textvariable=csvgen_progress_text).pack(side=LEFT)
+  bt_start_csvgen = tkinter.Button(csvgen, text="Start")
+  bt_start_csvgen.pack(side=LEFT)
+
+  color_window = tkinter.Toplevel(bg="orange")
+  color_window.title("Color for test with monitor")
+  color_window.withdraw()
+  def on_actuator_var_changed(*args):
+    if actuator_var.get() == 2:
+      color_window.deiconify()
+    else:
+      color_window.withdraw()
+  actuator_var.trace_variable("w", on_actuator_var_changed)
+
+  global ok_count
+  ok_count = 0
+  global csvgen_state
+  csvgen_state = 0
+  def update_csvgen(sensor_index, raw, values):
+    global csvgen_state
+    global csvgen_data
+    global csvgen_step
+    global csvgen_rgb
+    global csvgen_file
+    global csvgen_expected_oks
+    global ok_count
+
+    if csvgen_state == 0:  # not active
+      return
+    elif csvgen_state == 1:  # set next value for actuator
+      csvgen_step += 1
+      csvgen_progress_text.set("step %d" % csvgen_step)
+      if (actuator_var.get() == 0 and csvgen_step >= 256) or csvgen_step >= 256*6:
+        print("csvgen done, data written to %s" % csvgen_file.name)
+        csvgen_state = 0
+        csvgen_progress_text.set("done")
+        csvgen_file.close()
+        bt_start_csvgen.configure(text="Start")
+      elif actuator_var.get() == 0:
+        ok_count = 0
+        if csvgen_step != integration_time.get():
+          integration_time.set(csvgen_step)
+          csvgen_expected_oks = tcs_count
+          csvgen_state = 2
+        else:
+          csvgen_state = 3
+        csvgen_rgb = (csvgen_step, 0, 0)
+      else:
+        if csvgen_step < 256:     # ramp up red   -> red
+          r, g, b = csvgen_step, 0, 0
+        elif csvgen_step < 2*256: # ramp up green -> yellow
+          r, g, b = 255, csvgen_step-1*256, 0
+        elif csvgen_step < 3*256: # ramp down red -> green
+          r, g, b = 255-(csvgen_step-2*256), 255, 0
+        elif csvgen_step < 4*256: # ramp up blue  -> cyan
+          r, g, b = 0, 255, csvgen_step-3*256
+        elif csvgen_step < 5*256: # ramp down green -> blue
+          r, g, b = 0, 255-(csvgen_step-4*256), 255
+        elif csvgen_step < 6*256: # ramp up red, again -> pink
+          r, g, b = csvgen_step-5*256, 0, 255
+        else:
+          raise Exception("unexpected")
+        csvgen_rgb = (r, g, b)
+
+        if actuator_var.get() == 1:
+          ok_count = 0
+          csvgen_expected_oks = 0
+          if r != led_red.get():
+            led_red.set(r)
+            csvgen_expected_oks += 1
+          if g != led_green.get():
+            led_green.set(g)
+            csvgen_expected_oks += 1
+          if b != led_blue.get():
+            led_blue.set(b)
+            csvgen_expected_oks += 1
+          csvgen_state = 2
+        else:
+          color_window.configure(bg="#%02x%02x%02x"%(r, g, b))
+          csvgen_state = 3  # no need to wait for ok from Arduino
+    elif csvgen_state == 2:  # wait for ok from Arduino
+      #FIXME timeout and set again?
+      if ok_count >= csvgen_expected_oks:
+        csvgen_state = 3
+    elif csvgen_state == 3:  # collect measurements
+      pass  # handled below so we don't lose one measurement when switching to this state
+    else:
+      print("invalid state")
+      csvgen_state = 0
+
+    if csvgen_state == 3:  # collect measurements
+      csvgen_data[sensor_index].append((raw, values))
+
+      #FIXME skip sensors that don't provide any data, e.g. are not connected
+      if min(len(vs) for vs in csvgen_data) >= 3:
+        if csvgen_step == 0:
+          csvgen_file = tempfile.NamedTemporaryFile(prefix="tcstest%d_" % actuator_var.get(), suffix=".csv", delete=False, dir=".", mode="w")
+          print("csvgen data will be written to %s" % csvgen_file.name)
+          cells = ["mode", "step", "r", "g", "b"]
+          for i in range(tcs_count):
+            cells.extend(("sensor%d.raw_r1"%i, "sensor%d.raw_g1"%i, "sensor%d.raw_b1"%i, "sensor%d.raw_r2"%i, "sensor%d.raw_g2"%i, "sensor%d.raw_b2"%i))
+            cells.extend(("sensor%d.r1"%i, "sensor%d.g1"%i, "sensor%d.b1"%i, "sensor%d.r2"%i, "sensor%d.g2"%i, "sensor%d.b2"%i))
+            cells.extend(("sensor%d.r"%i, "sensor%d.g"%i, "sensor%d.b"%i))
+          csvgen_file.write("\t".join(cells) + "\n")
+        cells = []
+        if actuator_var.get() == 0:
+          cells.append("itime")
+        elif actuator_var.get() == 1:
+          cells.append("WS2812")
+        elif actuator_var.get() == 2:
+          cells.append("monitor")
+        else:
+          cells.append("??")
+        cells.append(csvgen_step)
+        cells.extend(csvgen_rgb)
+        for d in csvgen_data:
+          for i in [1, 2]:
+            cells.extend(d[i][0])  # raw
+          for i in [1, 2]:
+            cells.extend(d[i][1])  # maybe compensated
+          avg = (sum(v[1][j] for v in d[1:]) / len(d[1:]) for j in range(3))
+          cells.extend(avg)
+          csvgen_file.write("\t".join(map(str, cells)) + "\n")
+          csvgen_file.flush()
+
+        csvgen_state = 1
+
+
+  def csvgen_start(*args):
+    global csvgen_state
+    global csvgen_data
+    global csvgen_step
+    if csvgen_state == 0:
+      csvgen_data = [[] for _ in range(tcs_count)]
+      csvgen_step = -1
+      csvgen_state = 1
+      bt_start_csvgen.configure(text="Abort")
+    else:
+      csvgen_state = 0
+      csvgen_progress_text.set("aborted")
+      bt_start_csvgen.configure(text="Start")
+  bt_start_csvgen.configure(command=csvgen_start)
 
   global prev, prevs
   prev = (0, 0, 0, 0)
@@ -182,6 +334,8 @@ def run_gui(serial_device):
 
       red, green, blue = numpy.dot(tcs_to_rgb, (red, green, blue))
       #print("%d: %r -> %r" % (sensor_index, raw, (red, green, blue)))
+
+    update_csvgen(sensor_index, raw, (clear, red, green, blue))
 
     if logscale.get() != 0:
       #disp_clear = math.log(clear)/math.log(1<<16)
@@ -313,7 +467,11 @@ def run_gui(serial_device):
         line = line.strip()
         if line == b"":
           pass
-        elif line in [b"%ok"] or line[0] == '#'[0]:
+        elif line in [b"%ok"]:
+          global ok_count
+          print(line)
+          ok_count += 1
+        elif line[0] == '#'[0]:
           print(line)
         elif re.match(b':tcs[01][.]present=[01]', line):
           #TODO do something useful
