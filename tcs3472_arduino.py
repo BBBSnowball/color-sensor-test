@@ -15,11 +15,13 @@ def run_gui(serial_device):
   tcs_count = 3
 
   root = tkinter.Tk()
+  root.title("Color Sensor Test")
+  root.configure(bg="black")
   root.columnconfigure(tcs_count-1, weight=1)
   root.rowconfigure(0, weight=1)
 
   row = 0
-  canvas = tkinter.Canvas(root)
+  canvas = tkinter.Canvas(root, bg="black")
   canvas.grid(column=0, row=row, sticky=(N, E, W, S), columnspan=tcs_count)
   row += 1
 
@@ -51,7 +53,7 @@ def run_gui(serial_device):
     var = IntVar(value=p[1])
     slider_vars.append(var)
     Label(root, text=p[0]).grid(column=0, row=row, sticky=(W,))
-    slider_inst = tkinter.Scale(root, from_=p[2], to=p[3], variable=var, orient=tkinter.HORIZONTAL, takefocus=True)
+    slider_inst = tkinter.Scale(root, from_=p[2], to=p[3], variable=var, orient=tkinter.HORIZONTAL, takefocus=True, bg="black", fg="white")
     slider_inst.grid(column=1, row=row, columnspan=tcs_count-1, sticky=(E, W))
     row += 1
   integration_time, gain, led_red, led_green, led_blue = slider_vars
@@ -100,7 +102,7 @@ def run_gui(serial_device):
       ratio_text.set(", ".join("(%4.2f, %4.2f, %4.2f, %5.0f)" % (x[1]/x[0], x[2]/x[0], x[3]/x[0], x[4]/x[0]) for x in avg_ratios if x[0] > 0))
 
     if raw_values.get() == 0:
-      # Test wavelength from the TCS34725 datasheet match WS2812D-F8 to within 5 nm so these values should be a good match.
+      # Test wavelength from the TCS34725 datasheet match WS2812D-F8 to within 10 nm so these values should be a good match.
       # This is the "Optical Characteristics" data from the datasheet. We are using the average of min and max because the
       # typical value isn't specified.
       # https://cdn-shop.adafruit.com/datasheets/TCS34725.pdf
@@ -231,7 +233,7 @@ def run_gui(serial_device):
     if sensor_index == 0:
       global prev
       canvas.move("lines", -step, 0)
-      canvas.create_line(w-step-1, h+2-prev[0]*h, w-1, h+2-disp_clear*h, tags=("clear", "lines"), fill="black", width=2)
+      canvas.create_line(w-step-1, h+2-prev[0]*h, w-1, h+2-disp_clear*h, tags=("clear", "lines"), fill="white", width=2)
       canvas.create_line(w-step-1, h+2-prev[1]*h, w-1, h+2-disp_red*h,   tags=("red", "lines"), fill="red", width=2)
       canvas.create_line(w-step-1, h+2-prev[2]*h, w-1, h+2-disp_green*h, tags=("green", "lines"), fill="green", width=2)
       canvas.create_line(w-step-1, h+2-prev[3]*h, w-1, h+2-disp_blue*h,  tags=("blue", "lines"), fill="blue", width=2)
@@ -242,11 +244,11 @@ def run_gui(serial_device):
     h0 = h + 45*sensor_index
     wbar = w*0.8
     offset = w*0.1
-    canvas.create_rectangle(offset, h0+5,  disp_clear*wbar + offset, h0+15, tags=("clear", bars_tag), fill="black")
-    canvas.create_rectangle(offset, h0+8,  disp_sum  *wbar + offset, h0+12, tags=("clear", bars_tag), fill="orange")
-    canvas.create_rectangle(offset, h0+15, disp_red  *wbar + offset, h0+25, tags=("red",   bars_tag), fill="red")
-    canvas.create_rectangle(offset, h0+25, disp_green*wbar + offset, h0+35, tags=("green", bars_tag), fill="green")
-    canvas.create_rectangle(offset, h0+35, disp_blue *wbar + offset, h0+45, tags=("blue",  bars_tag), fill="blue")
+    canvas.create_rectangle(offset, h0+5,  disp_clear*wbar + offset, h0+15, tags=("clear", bars_tag), fill="white",  outline="white")
+    canvas.create_rectangle(offset, h0+8,  disp_sum  *wbar + offset, h0+12, tags=("clear", bars_tag), fill="orange", outline="orange")
+    canvas.create_rectangle(offset, h0+15, disp_red  *wbar + offset, h0+25, tags=("red",   bars_tag), fill="red",    outline="red")
+    canvas.create_rectangle(offset, h0+25, disp_green*wbar + offset, h0+35, tags=("green", bars_tag), fill="green",  outline="green")
+    canvas.create_rectangle(offset, h0+35, disp_blue *wbar + offset, h0+45, tags=("blue",  bars_tag), fill="blue",   outline="blue")
 
   mainloop_done = False
   def query_sensor():
