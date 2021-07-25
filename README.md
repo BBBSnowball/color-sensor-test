@@ -65,8 +65,7 @@ The color filters aren't perfect so the channels also react to other colors. Thi
 The wavelengths of a WS2812D-F8 are quite close to the test wavelength in "Optical Characteristics" (to within 5 nm), which are presumably what the TCS was designed for. We should achieve similar
 results. Here is my test setup (the second one with more distance to not saturate the sensor at the high gain setting):
 
-![](images/tcs3472-test1.png)
-![](images/tcs3472-test2.png)
+<img src="images/tcs3472-test1.jpg" width="400"><img src="images/tcs3472-test2.jpg" width="400">
 
 **FIXME**: insert bar graph with error bars for my measurements
 
@@ -75,11 +74,11 @@ The sensors are slightly different and we use the same compensation so the resul
 
 ![](images/tcs3472-yellow-over-first-sensor.png)
 
-This is with the WS2812 set to full yellow (`#ffff00`) over the first sensor. The others see it at an angle, which reduces the amount of red for some reason [^1] (but this is consistent across measurements).
+This is with the WS2812 set to full yellow (`#ffff00`) over the first sensor. The others see it at an angle, which reduces the amount of red for some reason<sup>1</sup> (but this is consistent across measurements).
 We can see that the false blue measurement is reduced to about zero. The smaller orange bar is the sum of the colors and it should be almost equal to the black bar (the one without any color filters).
 This is actually slightly worse than with the uncalibrated values.
 
-[^1]: The LED also appears green to the eye when looking at the side rather than the front. However, the effect on the measurement seems to be less for the first sensor (the one baught at Ebay instead
+<sup>1</sup> The LED also appears green to the eye when looking at the side rather than the front. However, the effect on the measurement seems to be less for the first sensor (the one baught at Ebay instead
       of AliExpress) so it seems that there is some additional directionality of the sensors at play.
 
 License
