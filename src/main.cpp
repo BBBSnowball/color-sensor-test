@@ -175,6 +175,7 @@ public:
       if (verbose) {
         Serial.print(F("#warn: Reg 0x12 should be 0x44 or 0x4D but it is 0x"));
         printHex(id_reg);
+        Serial.println();
       }
       return false;
     }
@@ -349,7 +350,9 @@ void pollSensors() {
     bool present = tcs[tcs_index].prepare(true);
     if (present != tcs_present[tcs_index]) {
       tcs_present[tcs_index] = present;
-      Serial.print(F(":tcs0.present="));
+      Serial.print(F(":tcs"));
+      Serial.print(tcs_index);
+      Serial.print(F(".present="));
       Serial.println(present);
     }
     if (present) {
