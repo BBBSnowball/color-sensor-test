@@ -2,10 +2,12 @@ This repository contains code for evaluating the TCS3472 and - later - maybe com
 
 There are two ways to connect the sensor:
 
-* `tcs3472_ftdi.py`: One sensor connected to a Sipeed RV Debugger. I2C is done by bitbanging via USB so this is very slow. Don't use this unless you have to.
-* `tcs3472_arduino.py`: Three sensors and one WS2812-F8 connected to an Arduino Pro Micro (ATmega32U4). See `src/main.cpp` for the firmware of the Arduino.
+* `python3 tcs3472_ftdi.py`: One sensor connected to a Sipeed RV Debugger. I2C is done by bitbanging via USB so this is very slow. Don't use this unless you have to.
+  * Need tkinter and pyftdi.
+* `python3 tcs3472_arduino.py COMPORT`: Three sensors and one WS2812-F8 connected to an Arduino Pro Micro (ATmega32U4). See `src/main.cpp` for the firmware of the Arduino.
+  * Need tkinter, pyserial and numpy.
 
-Both have a simple tkinter GUI.
+Both have a simple tkinter GUI but the second one has more features.
 
 
 Pinout (FTDI)
