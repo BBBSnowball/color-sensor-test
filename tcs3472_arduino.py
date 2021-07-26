@@ -11,6 +11,7 @@ import threading
 import re
 import numpy, numpy.linalg
 import tempfile
+import datetime
 
 def run_gui(serial_device):
   tcs_count = 3
@@ -94,6 +95,7 @@ def run_gui(serial_device):
   tkinter.Radiobutton(csvgen, text="Int. Time", variable=actuator_var, value=0).pack(side=LEFT)
   tkinter.Radiobutton(csvgen, text="WS2812",    variable=actuator_var, value=1).pack(side=LEFT)
   tkinter.Radiobutton(csvgen, text="Monitor",   variable=actuator_var, value=2).pack(side=LEFT)
+  tkinter.Radiobutton(csvgen, text="Gain",      variable=actuator_var, value=3).pack(side=LEFT)
   csvgen_progress_text = tkinter.StringVar(value="not started")
   tkinter.Label(csvgen, textvariable=csvgen_progress_text).pack(side=LEFT)
   bt_start_csvgen = tkinter.Button(csvgen, text="Start")
@@ -127,7 +129,7 @@ def run_gui(serial_device):
     elif csvgen_state == 1:  # set next value for actuator
       csvgen_step += 1
       csvgen_progress_text.set("step %d" % csvgen_step)
-      if (actuator_var.get() == 0 and csvgen_step >= 256) or csvgen_step >= 256*6:
+      if (actuator_var.get() == 0 and csvgen_step >= 256) or (actuator_var.get() == 3 and csvgen_step >= 4) or csvgen_step >= 256*7:
         print("csvgen done, data written to %s" % csvgen_file.name)
         csvgen_state = 0
         csvgen_progress_text.set("done")
@@ -137,6 +139,15 @@ def run_gui(serial_device):
         ok_count = 0
         if csvgen_step != integration_time.get():
           integration_time.set(csvgen_step)
+          csvgen_expected_oks = tcs_count
+          csvgen_state = 2
+        else:
+          csvgen_state = 3
+        csvgen_rgb = (csvgen_step, 0, 0)
+      elif actuator_var.get() == 3:
+        ok_count = 0
+        if csvgen_step != gain.get():
+          gain.set(csvgen_step)
           csvgen_expected_oks = tcs_count
           csvgen_state = 2
         else:
@@ -155,6 +166,8 @@ def run_gui(serial_device):
           r, g, b = 0, 255-(csvgen_step-4*256), 255
         elif csvgen_step < 6*256: # ramp up red, again -> pink
           r, g, b = csvgen_step-5*256, 0, 255
+        elif csvgen_step < 7*256: # ramp up green, again -> white
+          r, g, b = 255, csvgen_step-6*256, 255
         else:
           raise Exception("unexpected")
         csvgen_rgb = (r, g, b)
@@ -191,13 +204,17 @@ def run_gui(serial_device):
       #FIXME skip sensors that don't provide any data, e.g. are not connected
       if min(len(vs) for vs in csvgen_data) >= 3:
         if csvgen_step == 0:
-          csvgen_file = tempfile.NamedTemporaryFile(prefix="tcstest%d_" % actuator_var.get(), suffix=".csv", delete=False, dir=".", mode="w")
+          time = datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S")
+          csvgen_file = tempfile.NamedTemporaryFile(prefix="tcstest%d--%s--" % (actuator_var.get(), time), suffix=".csv", delete=False, dir=".", mode="w")
           print("csvgen data will be written to %s" % csvgen_file.name)
+          with open(csvgen_file.name + ".txt", "w") as f:
+            f.write("mode=%d\nitime=%d\ngain=%d\nws2812.r=%d\nws2812.g=%d\nws2812.b=%d\n"
+              % tuple(v.get() for v in (actuator_var, integration_time, gain, led_red, led_green, led_blue)))
           cells = ["mode", "step", "r", "g", "b"]
           for i in range(tcs_count):
-            cells.extend(("sensor%d.raw_r1"%i, "sensor%d.raw_g1"%i, "sensor%d.raw_b1"%i, "sensor%d.raw_r2"%i, "sensor%d.raw_g2"%i, "sensor%d.raw_b2"%i))
-            cells.extend(("sensor%d.r1"%i, "sensor%d.g1"%i, "sensor%d.b1"%i, "sensor%d.r2"%i, "sensor%d.g2"%i, "sensor%d.b2"%i))
-            cells.extend(("sensor%d.r"%i, "sensor%d.g"%i, "sensor%d.b"%i))
+            cells.extend(("sensor%d.raw_c1"%i, "sensor%d.raw_r1"%i, "sensor%d.raw_g1"%i, "sensor%d.raw_b1"%i, "sensor%d.raw_c2"%i, "sensor%d.raw_r2"%i, "sensor%d.raw_g2"%i, "sensor%d.raw_b2"%i))
+            cells.extend(("sensor%d.c1"%i, "sensor%d.r1"%i, "sensor%d.g1"%i, "sensor%d.b1"%i, "sensor%d.c2"%i, "sensor%d.r2"%i, "sensor%d.g2"%i, "sensor%d.b2"%i))
+            cells.extend(("sensor%d.c"%i, "sensor%d.r"%i, "sensor%d.g"%i, "sensor%d.b"%i))
           csvgen_file.write("\t".join(cells) + "\n")
         cells = []
         if actuator_var.get() == 0:
@@ -206,6 +223,8 @@ def run_gui(serial_device):
           cells.append("WS2812")
         elif actuator_var.get() == 2:
           cells.append("monitor")
+        elif actuator_var.get() == 3:
+          cells.append("gain")
         else:
           cells.append("??")
         cells.append(csvgen_step)
@@ -215,12 +234,14 @@ def run_gui(serial_device):
             cells.extend(d[i][0])  # raw
           for i in [1, 2]:
             cells.extend(d[i][1])  # maybe compensated
-          avg = (sum(v[1][j] for v in d[1:]) / len(d[1:]) for j in range(3))
+          avg = (sum(v[1][j] for v in d[1:]) / len(d[1:]) for j in range(4))
           cells.extend(avg)
-          csvgen_file.write("\t".join(map(str, cells)) + "\n")
-          csvgen_file.flush()
+        csvgen_file.write("\t".join(map(str, cells)) + "\n")
+        csvgen_file.flush()
 
         csvgen_state = 1
+        for v in csvgen_data:
+          v.clear()
 
 
   def csvgen_start(*args):
