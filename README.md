@@ -93,6 +93,62 @@ This is actually slightly worse than with the uncalibrated values.
 <sup>1</sup> This is consistent across measurements. The LED also appears green to the eye when looking at the side rather than the front. However, the effect on the measurement seems to be less
       for the first sensor (the one bought at Ebay instead of AliExpress) so there is some additional directionality of the sensors at play.
 
+
+Measurements
+------------
+
+Here are some graphs of my first measurements for one LED and two monitors. The sensors report different maximum values - especially for the WS2812, where they have different distances and
+angles - so I have normalized all channels to the value that was measured at full red/green/blue. The straight lines are the values that are output one the LED resp. monitor.
+
+<img src="images/tcs3472-measurement-ws2812.png">
+
+<img src="images/tcs3472-measurement-msi-left.png">
+
+<img src="images/tcs3472-measurement-msi-right.png">
+
+The WS2812 is looking good. This is in part because I have used the same LED to generate values for the compensation matrix so the value at full red/green/blue should be fairly perfect (except for differences
+between the sensors because they all use the same matrix). However, you can see that the plateaus are not even. For example, red goes down quite a lot when the green LED ramps up. This means that the compensation
+could be better.
+
+Linearity is quite good with the WS2812 except for very small values. This is to be expected because the LED uses PWM and the sensor integrates over a longer time. PWM means that the LED will always use the maximum
+current (or be off) and the sensor will see pulses that always have the same brightness (but will be longer or shorter). Therefore, we will get a linear result even if the color of the LED varies with current and
+if the sensor doesn't have a linear response to different brightness because we only ever use the same current and brightness (but less or more often resp. shorter/longer depending on PWM duty cycle).
+
+The monitors are more interesting. I assume that they also use PWM but the lines are curved. I think this is due to gamma correction and to match the color spectrum that the monitors are supposed to have.
+In addition, we see a strong effect on other colors. For example, if green ramps up, blue will rise by 50%. I think this is to increase brightness and contrast.
+
+In all the measurements, we see a significant difference for the red channel between the three sensors. However, this only occurs when there is a lot of green. I assume the influence of green light on the red
+channel is quite different between those sensors and we could solve this by compensation matrices that are calibrated for individual sensors.
+
+Just to convince you that compensation is a good idea despite the imperfections - here is a normalized graph with the raw values:
+
+<img src="images/tcs3472-measurement-ws2812-raw-normalized.png">
+
+And here is one without normalization. You can see that the longer wavelengths (i.e. red) have lower plateaus although the sensor should be more sensitive to them. I assume this means that red is actually less
+bright (which may be due to the angle).
+
+<img src="images/tcs3472-measurement-ws2812-not-normalized.png">
+
+Here is the same graph for the left monitor. Here, red is the strongest channel and green is lower by about the amount indicated in the datasheet. Blue should be at 10k but actually is at 8.5k, which may be due
+to color temperature settings of the monitor:
+
+<img src="images/tcs3472-measurement-msi-left-not-normalized.png">
+
+For reference, here are the monitor settings: Brightness and contrast at 70, sharpness at 0, custom color temperature with r=100, g=78, b=82 for the left monitor and r=100, g=83, b=75 for the right one.
+The different color temperature was chosen to match perceived color between those monitors.
+
+| Monitor | full red | full green | full blue | green/red | blue/red | color temperature |
+|---------|----------|------------|-----------|-----------|----------|-------------------|
+| left    | 14152    | 12392      | 8544      | 88 %      | 60 %     | r=100, g=78, b=82 |
+| right   | 16051    | 14938      | 9670      | 93 %      | 60 %     | r=100, g=83, b=75 |
+
+This would indicate that I should reduce the green slider to 78 for the right monitor but this actually makes it noticably more red than the left monitor. I'm comparing the monitors in the middle so the angle
+is slightly different - or maybe it is just make-believe and the monitors would look more similar with the same settings.
+
+The values also indicate that the right monitor is too bright. The sensors were mounted to the monitors with tape and the Arduino was dangling from them so don't think the results are too trustworthy in that
+domain. I have reduced the brightness a bit but if I reduce it as much as indicated by the measurements, it will be dimmer than the left monitor.
+
+
 License
 -------
 
