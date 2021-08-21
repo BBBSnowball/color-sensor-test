@@ -14,7 +14,7 @@ import tempfile
 import datetime
 
 def run_gui(serial_device):
-  tcs_count = 3
+  tcs_count = 6
 
   root = tkinter.Tk()
   root.title("Color Sensor Test")
@@ -451,7 +451,12 @@ def run_gui(serial_device):
       elif state == 2 and line[0] == b":"[0]:
         eq = line.find(b"=")
         if eq >= 0:
-          values[line[1:eq]] = int(line[eq+1:])
+          k = line[1:eq]
+          v = line[eq+1:]
+          if k.endswith(b".type"):
+            values[k] = v
+          else:
+            values[k] = int(v)
       else:
         print("unexpected line: %r" % line)
 
