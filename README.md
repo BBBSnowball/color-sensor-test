@@ -114,8 +114,11 @@ Linearity is quite good with the WS2812 except for very small values. This is to
 current (or be off) and the sensor will see pulses that always have the same brightness (but will be longer or shorter). Therefore, we will get a linear result even if the color of the LED varies with current and
 if the sensor doesn't have a linear response to different brightness because we only ever use the same current and brightness (but less or more often resp. shorter/longer depending on PWM duty cycle).
 
-The monitors are more interesting. I assume that they also use PWM but the lines are curved. I think this is due to gamma correction and to match the color spectrum that the monitors are supposed to have.
+The monitors are more interesting. ~~I assume that they also use PWM.~~ The lines are curved. I think this is due to gamma correction and to match the color spectrum that the monitors are supposed to have.
 In addition, we see a strong effect on other colors. For example, if green ramps up, blue will rise by 50%. I think this is to increase brightness and contrast.
+
+The monitors have VA panels so liquid crystals tilt to let more or less light reach the eye (or sensor, in our case). This means that the linearity of the sensor
+is actually relevant here. The backlight uses white LEDs, which are most likely blue-ish LEDs coated with phosphor, which shifts part of the emitted light towards green and red. Thus, the spectrum will have one narrow peak at blue and a white one at red. This is far from "ideal" sunlight and the measurement may be influenced by this unless the color filters of the sensor match our eyes really well.
 
 In all the measurements, we see a significant difference for the red channel between the three sensors. However, this only occurs when there is a lot of green. I assume the influence of green light on the red
 channel is quite different between those sensors and we could solve this by compensation matrices that are calibrated for individual sensors.
