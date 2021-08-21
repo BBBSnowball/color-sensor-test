@@ -494,7 +494,7 @@ def run_gui(serial_device):
           ok_count += 1
         elif line[0] == '#'[0]:
           print(line)
-        elif re.match(b':tcs[01][.]present=[01]', line):
+        elif re.match(b':tcs(\d+)[.]present=[01]', line):
           #TODO do something useful
           print(line)
         elif re.match(b':tcs(\d+)[.]color=[(]0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+), *0x([0-9a-fA-F]+)[)]', line):
