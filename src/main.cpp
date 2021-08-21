@@ -5,12 +5,28 @@
 
 constexpr int TCS_COUNT = 3;
 
-constexpr int LED[TCS_COUNT] = { 4, 7, 10 };
+constexpr int TCS0_SDA = 2;  // hardware I2C
+constexpr int TCS0_SCL = 3;
+constexpr int TCS0_LED = 14;
+constexpr int TCS1_SDA = 16;
+constexpr int TCS1_SCL = 10;
+constexpr int TCS1_LED = 15;
+constexpr int TCS2_SDA = A0; // 18
+constexpr int TCS2_SCL = 10;
+constexpr int TCS2_LED = A1; // 19
 
-constexpr int I2C1_SDA = 5;
-constexpr int I2C1_SCL = 6;
-constexpr int I2C2_SDA = 14;
-constexpr int I2C2_SCL = 16;
+constexpr int LED[TCS_COUNT] = { TCS0_LED, TCS1_LED, TCS2_LED };
+
+//NOTE We use 5V but those lines are connected to 3.3V.
+//     -> BitBang_I2C only pulls low but not high so the
+//        pullups will pull to 3.3V and the device will
+//        never see any harmful 5V.
+constexpr int APDS0_SDA = 5;
+constexpr int APDS0_SCL = 4;
+constexpr int APDS1_SDA = 6;
+constexpr int APDS1_SCL = 4;
+constexpr int APDS2_SDA = 7;
+constexpr int APDS2_SCL = 4;
 
 constexpr int NUM_LEDS = 1;
 constexpr int LED_PIN = A3;
@@ -296,14 +312,14 @@ void setup() {
   Wire.setClock(400000);
 
   memset(bbi2c+0, 0, sizeof(*bbi2c));
-  bbi2c[0].iSDA = I2C1_SDA;
-  bbi2c[0].iSCL = I2C1_SCL;
+  bbi2c[0].iSDA = TCS1_SDA;
+  bbi2c[0].iSCL = TCS1_SCL;
   bbi2c[0].bWire = 0;
   I2CInit(bbi2c+0, 100000L);
 
   memset(bbi2c+1, 0, sizeof(*bbi2c));
-  bbi2c[1].iSDA = I2C2_SDA;
-  bbi2c[1].iSCL = I2C2_SCL;
+  bbi2c[1].iSDA = TCS2_SDA;
+  bbi2c[1].iSCL = TCS2_SCL;
   bbi2c[1].bWire = 0;
   I2CInit(bbi2c+1, 100000L);
 
